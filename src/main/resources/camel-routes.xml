@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes xmlns="http://camel.apache.org/schema/spring"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://camel.apache.org/schema/spring https://camel.apache.org/schema/spring/camel-spring.xsd">
+
+    <route id="externalApiCallRoute">
+        <description>Route to call external REST API</description>
+        
+        <from uri="{{app.route.from-endpoint}}"/>
+        <log message="Starting API call to external service" loggingLevel="INFO"/>
+        
+        <setHeader name="CamelHttpMethod">
+            <constant>GET</constant>
+        </setHeader>
+        <setHeader name="Accept">
+            <constant>application/json</constant>
+        </setHeader>
+        
+        <to uri="{{app.external.api.base-url}}{{app.external.api.endpoints.users}}?httpClient.connectTimeout={{app.external.api.timeout}}&amp;bridgeEndpoint=true"/>
+        
+        <log message="API Response Status: ${header.CamelHttpResponseCode}" loggingLevel="INFO"/>
+        <log message="API Response Body Length: ${body.length()}" loggingLevel="INFO"/>
+        
+        <convertBodyTo type="java.lang.String"/>
+        <process ref="apiResponseProcessor"/>
+        
+        <choice>
+            <when>
+                <simple>${header.CamelHttpResponseCode} == 200</simple>
+                <log message="API call successful" loggingLevel="INFO"/>
+            </when>
+            <otherwise>
+                <log message="API call failed with status: ${header.CamelHttpResponseCode}" loggingLevel="ERROR"/>
+                <to uri="direct:handleApiError"/>
+            </otherwise>
+        </choice>
+        
+        <log message="API call route completed" loggingLevel="INFO"/>
+    </route>
+    
+    <route id="restApiTriggerRoute">
+        <description>REST endpoint to trigger API call manually</description>
+        
+        <from uri="rest:get:/trigger?consumes=application/json&amp;produces=application/json"/>
+        <log message="Manual API trigger requested via REST" loggingLevel="INFO"/>
+        
+        <setHeader name="CamelHttpMethod">
+            <constant>GET</constant>
+        </setHeader>
+        
+        <to uri="{{app.external.api.base-url}}{{app.external.api.endpoints.users}}"/>
+        <process ref="apiResponseProcessor"/>
+        
+        <setHeader name="Content-Type">
+            <constant>application/json</constant>
+        </setHeader>
+        
+        <log message="REST trigger completed" loggingLevel="INFO"/>
+    </route>
+    
+    <route id="apiErrorHandlerRoute">
+        <description>Handle API call errors</description>
+        
+        <from uri="direct:handleApiError"/>
+        <log message="Handling API error: ${exception.message}" loggingLevel="ERROR"/>
+        
+        <setBody>
+            <simple>{"error": "API call failed", "status": "${header.CamelHttpResponseCode}", "message": "${exception.message}"}</simple>
+        </setBody>
+    </route>
+    
+</routes>

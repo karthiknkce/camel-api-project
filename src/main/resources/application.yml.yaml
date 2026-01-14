@@ -1,0 +1,47 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+app:
+  name: camel-api-service
+  version: 1.0.0
+  external:
+    api:
+      base-url: https://jsonplaceholder.typicode.com
+      endpoints:
+        users: /users
+      timeout: 5000
+  route:
+    enabled: true
+    initial-delay: 5000
+    delay: 30000
+    from-endpoint: timer://apiPoller?fixedRate=true&period=${app.route.delay}&delay=${app.route.initial-delay}
+
+camel:
+  springboot:
+    name: ${app.name}
+    main-run-controller: true
+  health:
+    routes:
+      enabled: true
+    consumers:
+      enabled: true
+
+logging:
+  level:
+    com.camel.api: INFO
+    org.apache.camel: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/camel-api.log
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,camelroutes
+  endpoint:
+    health:
+      show-details: always
